@@ -1,0 +1,11 @@
+taskname           = "importfits"
+fitsimage          =  "/Users/tashaleebillings/Desktop/data/2.2Validation/gleam.cl.pbcorr.fits"
+imagename          =  "/Users/tashaleebillings/Desktop/data/2.2Validation/gleam.cl.pbcorr.image"
+whichrep           =  0
+whichhdu           =  -1
+zeroblanks         =  True
+overwrite          =  True
+defaultaxes        =  False
+defaultaxesvalues    =  []
+beam               =  []
+#importfits(fitsimage="/Users/tashaleebillings/Desktop/data/2.2Validation/gleam.cl.pbcorr.fits",imagename="/Users/tashaleebillings/Desktop/data/2.2Validation/gleam.cl.pbcorr.image",whichrep=0,whichhdu=-1,zeroblanks=True,overwrite=True,defaultaxes=False,defaultaxesvalues=[],beam=[])

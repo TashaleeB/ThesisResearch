@@ -1,0 +1,23 @@
+taskname           = "applycal"
+vis                =  "/Users/tashaleebillings/Desktop/data/2.2Validation/zen.2458106.28114.HH.uv.ms"
+field              =  ""
+spw                =  ""
+intent             =  ""
+selectdata         =  True
+timerange          =  ""
+uvrange            =  ""
+antenna            =  ""
+scan               =  ""
+observation        =  ""
+msselect           =  ""
+docallib           =  False
+callib             =  ""
+gaintable          =  ['/Users/tashaleebillings/Desktop/data/2.2Validation/zen.2458106.28114.HH.uv.ms.K.cal', '/Users/tashaleebillings/Desktop/data/2.2Validation/zen.2458106.28114.HH.uv.ms.Gphs.cal', '/Users/tashaleebillings/Desktop/data/2.2Validation/zen.2458106.28114.HH.uv.ms.Gamp.cal', '/Users/tashaleebillings/Desktop/data/2.2Validation/zen.2458106.28114.HH.uv.ms.B.cal']
+gainfield          =  []
+interp             =  []
+spwmap             =  []
+calwt              =  [True]
+parang             =  False
+applymode          =  ""
+flagbackup         =  True
+#applycal(vis="/Users/tashaleebillings/Desktop/data/2.2Validation/zen.2458106.28114.HH.uv.ms",field="",spw="",intent="",selectdata=True,timerange="",uvrange="",antenna="",scan="",observation="",msselect="",docallib=False,callib="",gaintable=['/Users/tashaleebillings/Desktop/data/2.2Validation/zen.2458106.28114.HH.uv.ms.K.cal', '/Users/tashaleebillings/Desktop/data/2.2Validation/zen.2458106.28114.HH.uv.ms.Gphs.cal', '/Users/tashaleebillings/Desktop/data/2.2Validation/zen.2458106.28114.HH.uv.ms.Gamp.cal', '/Users/tashaleebillings/Desktop/data/2.2Validation/zen.2458106.28114.HH.uv.ms.B.cal'],gainfield=[],interp=[],spwmap=[],calwt=[True],parang=False,applymode="",flagbackup=True)

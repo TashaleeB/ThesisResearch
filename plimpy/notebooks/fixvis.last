@@ -1,0 +1,10 @@
+taskname           = "fixvis"
+vis                =  "/Users/tashaleebillings/Desktop/data/2.2Validation/zen.2458106.28114.HH.uv.ms"
+outputvis          =  "/Users/tashaleebillings/Desktop/data/2.2Validation/zen.2458106.28114.HH.uv.ms"
+field              =  ""
+refcode            =  ""
+reuse              =  True
+phasecenter        =  "J2000 02h00m12s -30d53m27s"
+distances          =  ""
+datacolumn         =  "all"
+#fixvis(vis="/Users/tashaleebillings/Desktop/data/2.2Validation/zen.2458106.28114.HH.uv.ms",outputvis="/Users/tashaleebillings/Desktop/data/2.2Validation/zen.2458106.28114.HH.uv.ms",field="",refcode="",reuse=True,phasecenter="J2000 02h00m12s -30d53m27s",distances="",datacolumn="all")

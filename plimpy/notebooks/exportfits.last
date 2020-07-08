@@ -1,0 +1,14 @@
+taskname           = "exportfits"
+imagename          =  "/Users/tashaleebillings/Desktop/data/2.2Validation/gleam.cl.image"
+fitsimage          =  "/Users/tashaleebillings/Desktop/data/2.2Validation/gleam.cl.fits"
+velocity           =  False
+optical            =  False
+bitpix             =  -32
+minpix             =  0
+maxpix             =  -1
+overwrite          =  True
+dropstokes         =  False
+stokeslast         =  False
+history            =  True
+dropdeg            =  False
+#exportfits(imagename="/Users/tashaleebillings/Desktop/data/2.2Validation/gleam.cl.image",fitsimage="/Users/tashaleebillings/Desktop/data/2.2Validation/gleam.cl.fits",velocity=False,optical=False,bitpix=-32,minpix=0,maxpix=-1,overwrite=True,dropstokes=False,stokeslast=False,history=True,dropdeg=False)
