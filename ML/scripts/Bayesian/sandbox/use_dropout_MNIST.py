@@ -6,7 +6,6 @@
 
 from __future__ import print_function, division, absolute_import
 
-import pandas as pd
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
@@ -55,17 +54,17 @@ model_dropout.add(Activation('softmax'))
 
 model_dropout.summary()
 """
-inputs = Flatten(input_shape=(28, 28))
+inputs0 = Input(shape=(28, 28))
+inputs1 = Flatten()(inputs0)
 #inputs = Input(shape=(X_train.shape[1]),)
 #inter = Dense(N_CLASSES)(inputs)
-inter = Dropout(DROPOUT)(inputs, training=True)
+inter = Dropout(DROPOUT)(inputs1, training=True)
 #inter = ReLU()
 inter = Dense(N_CLASSES, activation='relu')(inter)
 inter = Dropout(DROPOUT)(inter, training=True)
 inter = Dense(128, activation='relu')(inter)
 output = Dense(N_CLASSES, activation='softmax')(inter)
-
-model_dropout = Model(inputs=inputs, outputs=output)
+model_dropout = Model(inputs=inputs0, outputs=output)
 
 # We’re trying to predict classes, we use categorical crossentropy as our loss function
 # Compile model
