@@ -28,7 +28,6 @@ from scipy.ndimage import gaussian_filter
 
 from tensorflow import keras
 
-from tensorflow.keras.datasets import mnist
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.utils import plot_model
 from tensorflow.keras.layers import Dense, Dropout, Flatten, BatchNormalization

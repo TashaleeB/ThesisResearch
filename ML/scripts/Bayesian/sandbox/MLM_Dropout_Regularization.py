@@ -51,6 +51,7 @@ estimators.append(('standardize', StandardScaler()))
 estimators.append(('mlp', KerasClassifier(build_fn=create_model, epochs=300, batch_size=16, verbose=0)))
 pipeline = Pipeline(estimators, verbose=True)
 
+# cross validation
 kfold = StratifiedKFold(n_splits=10, shuffle=True)
 results = cross_val_score(estimator=pipeline, X=X, y=encoded_Y, cv=kfold)
 """
