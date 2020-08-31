@@ -14,7 +14,7 @@ from datetime import timedelta
 from tensorflow.keras import Model
 from tensorflow.keras.layers import Input, Dense, Dropout, BatchNormalization, Conv2D, MaxPooling2D, GlobalAveragePooling2D
 from keras import backend as K
-#from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score
 
 from matplotlib.ticker import PercentFormatter
 
@@ -27,10 +27,10 @@ wedge = False # Is the data wedge filtered
 data_path = '/pylon5/as5phnp/tbilling/data/'
 
 if wedge == False:
-    inputFile = data_path+'t21_snapshots_nowedge_v9.hdf5'
+    inputFile = data_path+'t21_snapshots_nowedge_v7.hdf5'
 
 if wedge == True:
-    inputFile = data_path+'t21_snapshots_wedge_v9.hdf5'
+    inputFile = data_path+'t21_snapshots_wedge_v7.hdf5'
     
 outputdir = "/pylon5/as5phnp/tbilling/sandbox/bayesian/"
 
@@ -119,7 +119,7 @@ train_images,shape =readImages(ind=train_index)
 
 test_labels = readLabels(ind=None)[test_index,5]*factor
 testl_abels = test_labels.reshape(-1, 1)
-test_images,input_shape = readImages(ind=test_index)
+test_image,input_shape = readImages(ind=test_index)
 
 def model():
     input0 = Input(shape=input_shape)
@@ -217,12 +217,12 @@ if wedge == False:
                  metric=np.array(history_dropout.history[str(key)])/factor)
 
 # evaluate trained model
-test_loss = model_dropout.evaluate(test_images, test_labels)
+test_loss = model_dropout.evaluate(test_image, test_labels)
 
 # make predictions
 dropout_predictions = []
 for i in range(500):
-    y_p = model_dropout.predict(test_images, batch_size=test_labels.shape[0])
+    y_p = model_dropout.predict(test_image, batch_size=test_labels.shape[0])
     dropout_predictions.append(y_p) # (500, 100, 1) = (# of masks, # of datasets, # of classes)
 
 # select an index from the 200 prediciton over 500 dropout masks
@@ -236,7 +236,7 @@ print()
 for i, (prob, var) in enumerate(zip(p0.mean(axis=0), p0.std(axis=0))):
     print("class: {}; probability: {:.1%}; var: {:.2%} ".format(i, prob, var))
     
-# ???? Plot a 2D histogram ???? https://matplotlib.org/3.1.1/gallery/statistics/hist.html
+# Plot a 2D histogram ???? https://matplotlib.org/3.1.1/gallery/statistics/hist.html
 fig, ax = plt.subplots(tight_layout=True)
 hist = ax.hist2d(x, y, bins=10)
 
@@ -244,10 +244,8 @@ hist = ax.hist2d(x, y, bins=10)
 plt.figure(figsize=(12,12))
 plt.hist(p0[:,i], bins=100, density=True)
 plt.gca().yaxis.set_major_formatter(PercentFormatter(xmax=1))
-if wedge == True:
-    plt.savefig(outputdir+"MC_PDF_wedge.png")
-if wedge == False:
-plt.savefig(outputdir+"MC_PDF_nowedge.png")
+ax.set_title(f"class {i}")
+ax.label_outer()
 
 # one-to-one with errorbars (Fig 11) https://arxiv.org/pdf/1911.08508.pdf
 results = glob.glob(outputdir+"*.npy")
