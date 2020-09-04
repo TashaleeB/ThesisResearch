@@ -2,7 +2,7 @@
 
 ## Overview Of Research
 
-I am currently a 5th year PhD candidate working with Dr. James Aguirre on Hydrogen Epoch of Reionization Array (HERA). HERA is a second generation radio telescope dedicated to observing large scale structure during and prior to the epoch of reionization of the universe.
+I am currently a 6th year PhD candidate working with Dr. James Aguirre on Hydrogen Epoch of Reionization Array (HERA). HERA is a second generation radio telescope dedicated to observing large scale structure during and prior to the epoch of reionization of the universe.
 
 My thesis topic will focus on developing software for a more robust calibration and imaging pipeline for the research. I am also building a deep 2D convolutional neural network to regress cosmological parameters. These results will be heavily scrutinized through validations tests ensuring that it is a statistically sound prediction.
 
