@@ -5,7 +5,7 @@
 
 from __future__ import print_function, division, absolute_import
 
-import numpy as np, matplotlib.pyplot as plt, gc, time, h5py, keras
+import numpy as np, matplotlib.pyplot as plt, gc, time, h5py, keras, random, os
 import tensorflow as tf
 
 from datetime import timedelta
@@ -163,7 +163,7 @@ def lambda_loss(x):
      The value of the loss function.
     """
     y_true, y_pred, mu, sigma = x
-    likelihood = -(y_true - y_pred - mu)**2 / (y_true * sigma)**2 - K.log(2 * np.pi * (y_true * sigma)**2)
+    likelihood = -(y_true - y_pred - mu)**2 / (y_true * sigma)**2 - K.log(2 * np.pi * (y_true * sigma)**2)/2.0
     # take negative log of likelihood, since we're *minimizing* the loss
     return -1.0 * likelihood
 
@@ -233,6 +233,28 @@ def readImages(ind, **params):
 
     return data, data[0].shape
 
+def savePreds(model, eval_data, eval_labels, Ntot, fold, istart=0, outdir=None):
+    outputFile = os.path.join(outdir, "eval_pred_results{:d}_v9data.npy".format(fold))
+
+    # The Predict() method -  is for the actual prediction. It generates output predictions for the input samples.
+    preds = model.predict(eval_data, verbose=0).flatten() #0 = silent
+
+    Nregressparams = len(eval_labels[0])
+
+    results = np.zeros((Ntot, Nregressparams),
+                           dtype = [('truth', 'f'), ('prediction', 'f'), ('fold', 'i')])
+    iend = istart+len(eval_labels)
+
+    #print('istart and iend', istart, iend)
+
+    results['fold'][istart:iend] = fold
+    results['truth'][istart:iend] = eval_labels
+    #results['truth'][istart-100:iend-100] = eval_labels
+    for n in range(Nregressparams):
+        results['prediction'][istart:iend,n] = preds[n::Nregressparams]
+        #results['prediction'][istart-100:iend-100,n] = preds[n::Nregressparams]
+
+    np.save(outputFile, results)
 
 # Load Index Label
 train_index = np.load(train_test_file)["train_index"]
@@ -245,7 +267,7 @@ train_images,shape =readImages(ind=train_index)
 
 test_labels = readLabels(ind=None)[test_index,5]*factor
 testl_abels = test_labels.reshape(-1, 1)
-test_image,input_shape = readImages(ind=test_index)
+test_images,input_shape = readImages(ind=test_index)
 
 def model():
     input0 = Input(shape=input_shape)
@@ -255,12 +277,12 @@ def model():
     # Mu can be positive or negative, so we use a default "normal" value.
     # Sigma must be positive, so we start it out there.
     mu_initializer = RandomNormal(mean=0.0, stddev=1.0)
-    sigma_initializer = RandomUniform(minval=1.0, maxval=10.0)
+    sigma_initializer = RandomUniform(minval=1.0, maxval=10.0) #tf.constant([[0.0]])
 
     # Now, we actually *make* the mu and sigma layers we'll need.
     # The input layer we pass in doesn't matter, because it'll be ignored.
     mu = TrainableLossLayer(mu_initializer, name="mu_value")(input0)
-    sigma = TrainableLossLayer(sigma_initializer, name="sigma_value")(input0)
+    sigma = TrainableLossLayer(sigma_initializer, name="sigma_value")(input0) #sigma_initializer
 
     inner = Conv2D(filters=16, kernel_size=(3, 3), strides=(1, 1), activation='relu')(input0)
     inner = BatchNormalization()(inner)
@@ -309,7 +331,7 @@ def model():
 
     output = Dense(1)(inner)
 
-    # The "output" value of the network is in the "d3" layer. So that's the "y_pred"
+    # The "output" value of the network is in the "output" layer. So that's the "y_pred"
     # that I'm going to use in my loss function. So I'm going to call a Lambda layer
     # with the right arguments now, which will be my loss function.
     loss = Lambda(lambda_loss)([y_input, output, mu, sigma])
@@ -355,10 +377,12 @@ if wedge == True:
     # Save history
     print("Removing Scaling factor ({}) and saving histories...".format(factor))
     history_keys = np.array(list(history_dropout.history.keys()))
-    for key in history_keys:
-        np.savez(outputdir+"likelihood_CNN_wedge_history",
-                  metric=np.array(history_dropout.history[str(key)])/factor)
-
+    np.savez(outputdir+"likelihood_CNN_wedge_history",loss=np.array(history_dropout.history[str("loss")])/factor, val_loss=np.array(history_dropout.history[str("val_loss")])/factor)
+    
+ """
+history_keys = np.array(list(history_dropout.history.keys()))
+np.savez(outputdir+"transfer_model_CNN_nowedge_history",loss=np.array(history_dropout.history[str("loss")])/factor, val_loss=np.array(history_dropout.history[str("val_loss")])/factor)
+"""
 if wedge == False:
     # Save model and weights
     print("saving model trained on nowedge filtered data ...")
@@ -368,18 +392,24 @@ if wedge == False:
     # Save history
     print("Removing Scaling factor ({}) and saving histories...".format(factor))
     history_keys = np.array(list(history_dropout.history.keys()))
-    for key in history_keys:
-        np.savez(outputdir+"likelihood_CNN_nowedge_history",
-              metric=np.array(history_dropout.history[str(key)])/factor)
+    np.savez(outputdir+"likelihood_CNN_nowedge_history",loss=np.array(history_dropout.history[str("loss")])/factor, val_loss=np.array(history_dropout.history[str("val_loss")])/factor)
+              
+# Save these different combination of prediction incase you can to do something
+for i in range(10):
+    indx_val = Rand(0, 199, 100)
+    savePreds(model_dropout, test_images[indx_val], test_labels[indx_val], len(test_labels[indx_val]), fold=i+1,  outdir=outputdir)
+    print("Completed Fold ", i)
 
 # evaluate trained model
-test_loss = model_dropout.evaluate(test_image, test_labels)
+test_loss = model_dropout.evaluate([test_images, test_labels], np.zeros_like(test_labels))
 
 # make predictions
 dropout_predictions = []
 for i in range(500):
-    y_p = model_dropout.predict(test_image, batch_size=test_labels.shape[0])
+    #y_p = model_dropout.predict(test_images, batch_size=test_labels.shape[0])
+    y_p = please_load_model.predict([test_images, np.zeros_like(test_labels)], batch_size=test_labels.shape[0])
     dropout_predictions.append(y_p) # (500, 100, 1) = (# of masks, # of datasets, # of classes)
+    # np.array(dropout_predictions)[:,0,0]
 
 # select an index from the 200 prediciton over 500 dropout masks
 idx = 50
@@ -418,3 +448,6 @@ x = np.linspace(0.95*np.min(true_tau), 1.05*np.max(true_tau), 1000)
 plt.plot(x, x, 'k--',lw=1,alpha=0.2)
 plt.xlabel()
 plt.ylabel()
+
+# ----------------------------------------------------------
+likelihood_CNN_weights_nowedge.h5
