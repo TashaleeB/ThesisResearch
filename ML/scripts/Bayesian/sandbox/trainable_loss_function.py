@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# https://stackoverflow.com/questions/58566096/custom-loss-function-that-updates-at-each-step-via-gradient-descent
 
 import numpy as np
 from tensorflow.keras import backend as K
