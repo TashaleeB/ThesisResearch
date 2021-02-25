@@ -1,14 +1,16 @@
 # needs to be ran in hp_opt environment with Tensorflow version
-# https://www.depends-on-the-definition.com/model-uncertainty-in-deep-learning-with-monte-carlo-dropout/
-# Data set: MNIST
+# https://www.tensorflow.org/model_optimization/guide/pruning/pruning_with_keras
+# https://www.tensorflow.org/model_optimization/guide/pruning/comprehensive_guide
+# Data set: v9data
 
-# tf.__version__ : '2.1.0'
+# tf.__version__ : ''
 
 from __future__ import print_function, division, absolute_import
 
-import numpy as np, matplotlib.pyplot as plt, gc, time, h5py, keras
+import numpy as np, matplotlib.pyplot as plt, gc, time, h5py, keras, tempfile
 import tensorflow as tf
 import tensorflow_probability as tfp
+import tensorflow_model_optimization as tfmot
 
 tfd = tfp.distributions
 
@@ -17,6 +19,8 @@ from datetime import timedelta
 from tensorflow.keras import Model
 from tensorflow.keras.layers import Input, Dense, Dropout, BatchNormalization, Conv2D, MaxPooling2D, GlobalAveragePooling2D
 from keras import backend as K
+from keras.callbacks import ModelCheckpoint
+from keras.models import load_model
 #from sklearn.metrics import accuracy_score
 
 from matplotlib.ticker import PercentFormatter
@@ -35,13 +39,17 @@ if wedge == False:
 if wedge == True:
     inputFile = data_path+'t21_snapshots_wedge_v9.hdf5'
     
-outputdir = "/pylon5/as5phnp/tbilling/sandbox/bayesian/"
+best_model_name = "/pylon5/as5phnp/tbilling/sandbox/hyper_param_optimiz/ml_paper1/opt_versions/200steps_v9/hyperParam_model_1.h5"
+outputdir = "/pylon5/as5phnp/tbilling/sandbox/pruning/"
 
 train_test_file = "/pylon5/as5phnp/tbilling/sandbox/hyper_param_optimiz/ml_paper1/train_test_index_0.npz"
 
 n=0
-N_EPOCH = 200
+epochs = 200
+batch_size = 32
+validation_split = 0.1 # 10% of training set will be used for validation set.
 factor =1000.
+training = False # Set to True if dropout active in inference mode.
 
 
 def readLabels(ind=None, **params):
@@ -111,6 +119,11 @@ def Mean_Squared_over_true_Error(y_true, y_pred):
 
     return loss
 
+def r2_keras(y_true, y_pred):
+    SS_res =  K.sum(K.square(y_true - y_pred))
+    SS_tot = K.sum(K.square(y_true - K.mean(y_true)))
+    return ( 1 - SS_res/(SS_tot + K.epsilon()) )
+
 # Load Index Label
 train_index = np.load(train_test_file)["train_index"]
 test_index = np.load(train_test_file)["test_index"]
@@ -123,6 +136,17 @@ train_images,shape =readImages(ind=train_index)
 test_labels = readLabels(ind=None)[test_index,5]*factor
 testl_abels = test_labels.reshape(-1, 1)
 test_images,input_shape = readImages(ind=test_index)
+
+"""
+# It's generally better to finetune with pruning as opposed to training from scratch.
+# Load the best model
+model_for_pruning = load_model(best_model_name,
+custom_objects={"Mean_Squared_over_true_Error": Mean_Squared_over_true_Error,
+"r2_keras": r2_keras})
+
+model_for_pruning.load_weights("pruning50_CNN_weights_nowedge.h5")
+print(model_for_pruning.summary())
+"""
 
 def model():
     input0 = Input(shape=input_shape)
@@ -146,7 +170,7 @@ def model():
 
         inner = GlobalAveragePooling2D()(inner)
         
-        inner = Dropout(0.2)(inner, training=True)
+        inner = Dropout(0.2)(inner, training=training)
         inner = Dense(350, activation='relu')(inner)
     
     else:
@@ -160,110 +184,96 @@ def model():
 
         inner = GlobalAveragePooling2D()(inner)
 
-        inner = Dropout(0.2)(inner, training=True)
+        inner = Dropout(0.2)(inner, training=training)
         inner = Dense(250, activation='relu')(inner)
     
-    inner = Dropout(0.2)(inner, training=True)
+    inner = Dropout(0.2)(inner, training=training)
     inner = Dense(200, activation='relu')(inner)
     
-    inner = Dropout(0.2)(inner, training=True)
+    inner = Dropout(0.2)(inner, training=training)
     inner = Dense(100, activation='relu')(inner)
     
-    inner = Dropout(0.2)(inner, training=True)
+    inner = Dropout(0.2)(inner, training=training)
     inner = Dense(20, activation='relu')(inner)
     
     output = Dense(1)(inner)
     
-    model_dropout = Model(inputs=input0, outputs=output)
+    model_for_pruning = Model(inputs=input0, outputs=output)
     
-    # Compile Model
-    model_dropout.compile(loss=Mean_Squared_over_true_Error,optimizer=keras.optimizers.Adam(lr=0.0001, decay=0.))
+    # `prune_low_magnitude` requires a recompile.
+    model_for_pruning.compile(loss=Mean_Squared_over_true_Error,optimizer=keras.optimizers.Adam(lr=0.0001, decay=0.))
+    
+    # Set up pruning
+    prune_low_magnitude = tfmot.sparsity.keras.prune_low_magnitude
+
+    # Compute end step to finish pruning after 2 epochs.
+    num_images = train_images.shape[0] * (1 - validation_split)
+    end_step = np.ceil(num_images / batch_size).astype(np.int32) * epochs
+
+    # Define model for pruning.
+    pruning_params = {
+          'pruning_schedule': tfmot.sparsity.keras.PolynomialDecay(initial_sparsity=0.00,
+                                                                   final_sparsity=0.50,
+                                                                   begin_step=0,
+                                                                   end_step=end_step)
+    }
+
+    model_for_pruning = prune_low_magnitude(model_for_pruning, **pruning_params)
 
     # Summary of model used
-    print(model_dropout.summary())
+    print(model_for_pruning.summary())
     
-    return model_dropout
-    
+    return model_for_pruning
+
+model_for_pruning = model()
+logdir = tempfile.mkdtemp()
+
+filepath_model = outputdir+"prune_CNN_model.h5"
+filepath_weight = outputdir+"prune_CNN_weight.h5"
+checkpoint_model = ModelCheckpoint(filepath_model, monitor='loss', verbose=1,
+                                   save_best_only=True, save_weights_only = False, mode='min', save_freq=20)
+checkpoint_weight = ModelCheckpoint(filepath_weight, monitor='loss', verbose=1,
+                                    save_best_only=True, save_weights_only = True, mode='min', save_freq=20)
+callbacks = [checkpoint_model, checkpoint_weight,
+    tfmot.sparsity.keras.UpdatePruningStep(),
+    # Log sparsity and other metrics in Tensorboard.
+    tfmot.sparsity.keras.PruningSummaries(log_dir=logdir, update_freq='epoch')]
+
 
 start_time = time.time()
 # Start Training
-model_dropout = model()
-history_dropout = model_dropout.fit(train_images, train_labels, epochs=N_EPOCH,
-                                    batch_size=32, validation_split=0.1, verbose = 2, shuffle=True)
+history_pruning = model_for_pruning.fit(train_images, train_labels, epochs=epochs,callbacks=callbacks,
+                                    batch_size=batch_size, validation_split=validation_split, verbose = 2, shuffle=True)
 
 running_time = time.time() - start_time
 print("Finish Training CNN in ", str(timedelta(seconds=running_time)))
         
 # Save model information
 if wedge == True:
-    # Save model
+    # Save model and weights
     print("saving model trained on wedge filtered data ...")
-    model_dropout.save(outputdir+"dopout_CNN_model_wedge.h5")
-    
-    # Save history
-    print("Removing Scaling factor ({}) and saving histories...".format(factor))
-    history_keys = np.array(list(history_dropout.history.keys()))
-    for key in history_keys:
-        np.savez(outputdir+"dopout_CNN_wedge_history",
-                 metric=np.array(history_dropout.history[str(key)])/factor)
-                 
-if wedge == False:
-    # Save model
-    print("saving model trained on nowedge filtered data ...")
-    model_dropout.save(outputdir+"dopout_CNN_model_nowedge.h5")
+    model_for_pruning.save(outputdir+"pruning_CNN_model_wedge.h5")
+    model_for_pruning.save_weights(outputdir+"pruning_CNN_weights_wedge.h5")
 
     # Save history
     print("Removing Scaling factor ({}) and saving histories...".format(factor))
-    history_keys = np.array(list(history_dropout.history.keys()))
-    for key in history_keys:
-        np.savez(outputdir+"dopout_CNN_nowedge_history",
-                 metric=np.array(history_dropout.history[str(key)])/factor)
+    history_keys = np.array(list(history_pruning.history.keys()))
+    np.savez(outputdir+"pruning_CNN_wedge_history",loss=np.array(history_pruning.history[str("loss")])/factor, val_loss=np.array(history_pruning.history[str("val_loss")])/factor)
+    
+ """
+history_keys = np.array(list(history_dropout.history.keys()))
+np.savez(outputdir+"transfer_model_CNN_nowedge_history",loss=np.array(history_dropout.history[str("loss")])/factor, val_loss=np.array(history_dropout.history[str("val_loss")])/factor)
+"""
+if wedge == False:
+    # Save model and weights
+    print("saving model trained on nowedge filtered data ...")
+    model_for_pruning.save(outputdir+"pruning_CNN_model_nowedge.h5")
+    model_for_pruning.save_weights(outputdir+"pruning_CNN_weights_nowedge.h5")
+
+    # Save history
+    print("Removing Scaling factor ({}) and saving histories...".format(factor))
+    history_keys = np.array(list(history_pruning.history.keys()))
+    np.savez(outputdir+"pruning_CNN_nowedge_history",loss=np.array(history_pruning.history[str("loss")])/factor, val_loss=np.array(history_pruning.history[str("val_loss")])/factor)
 
 # evaluate trained model
-test_loss = model_dropout.evaluate(test_images, test_labels)
-
-# make predictions
-dropout_predictions = []
-for i in range(500):
-    y_p = model_dropout.predict(test_images, batch_size=test_labels.shape[0])
-    dropout_predictions.append(y_p) # (500, 100, 1) = (# of masks, # of datasets, # of classes)
-
-# select an index from the 200 prediciton over 500 dropout masks
-idx = 50
-p0 = np.array([p[idx] for p in dropout_predictions])
-print("posterior mean: {}".format(p0.mean(axis=0)))
-print("true label: {}".format(test_labels[idx]/factor))
-print()
-
-# probability and variance
-for i, (prob, var) in enumerate(zip(p0.mean(axis=0), p0.std(axis=0))):
-    print("class: {}; probability: {:.1%}; var: {:.2%} ".format(i, prob, var))
-    
-# ???? Plot a 2D histogram ???? https://matplotlib.org/3.1.1/gallery/statistics/hist.html
-fig, ax = plt.subplots(tight_layout=True)
-hist = ax.hist2d(x, y, bins=10)
-
-# look at the Probability distributions of the monte carlo predictions and in blue you see the prediction of the ensemble
-plt.figure(figsize=(12,12))
-plt.hist(p0[:,i], bins=100, density=True)
-plt.gca().yaxis.set_major_formatter(PercentFormatter(xmax=1))
-if wedge == True:
-    plt.savefig(outputdir+"MC_PDF_wedge.png")
-if wedge == False:
-plt.savefig(outputdir+"MC_PDF_nowedge.png")
-
-# one-to-one with errorbars (Fig 11) https://arxiv.org/pdf/1911.08508.pdf
-results = glob.glob(outputdir+"*.npy")
-result=np.load(results[0])
-
-# Convert to true tau units
-true_tau = low_z_tau + h_2 * result["truth"][:,n]/factor
-predicted_tau = low_z_tau + h_2 * result["prediction"][:,n]/factor
-
-plt.figure(figsize=(12,12))
-plt.errorbar(true_tau, predicted_tau, xerr=xerr, yerr=yerr, fmt='-o')
-#plt.scatter(true_tau, predicted_tau, s=6, lw=0, alpha=0.9, label=fold[r])
-x = np.linspace(0.95*np.min(true_tau), 1.05*np.max(true_tau), 1000)
-plt.plot(x, x, 'k--',lw=1,alpha=0.2)
-plt.xlabel()
-plt.ylabel()
+test_loss = model_for_pruning.evaluate(test_images, test_labels)

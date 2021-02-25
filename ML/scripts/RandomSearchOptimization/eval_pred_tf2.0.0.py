@@ -159,7 +159,7 @@ for i in np.arange(len(models)):
     fold = i
                     
     print('loading and compiling model...')
-    model = load_model(models[i],custom_objects= {"Mean_Squared_over_true_Error":Mean_Squared_over_true_Error,"r2_keras":r2_keras}, compile=False)
+    model = keras.models.load_model(models[i],custom_objects= {"Mean_Squared_over_true_Error":Mean_Squared_over_true_Error,"r2_keras":r2_keras}, compile=False)
     model.compile(optimizer=keras.optimizers.Adam(lr=0.0001, decay=0.),
     loss=Mean_Squared_over_true_Error,
     metrics=[r2_keras,'mse', 'mae', 'mape'])

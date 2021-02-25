@@ -15,8 +15,7 @@ tfd = tfp.distributions
 from datetime import timedelta
 
 from tensorflow.keras import Model
-from tensorflow.keras.layers import Input, Dense, Dropout, BatchNormalization, Conv2D, MaxPooling2D, GlobalAveragePo
-oling2D
+from tensorflow.keras.layers import Input, Dense, Dropout, BatchNormalization, Conv2D, MaxPooling2D, GlobalAveragePooling2D
 from keras import backend as K
 from keras.callbacks import ModelCheckpoint
 #from sklearn.metrics import accuracy_score

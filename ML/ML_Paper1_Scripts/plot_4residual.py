@@ -36,6 +36,9 @@ def statistics_plot_dev(coefficient):
         mean[:,1]=mean_value[1]
     
         return mean, coefficients
+"""
+Use coef_estimate_tau_slope.py to calculate the intercept and slope of each line.
+"""
 
 # -----------------------------------------------
 # No wedge filtering
@@ -108,39 +111,43 @@ for r, res in enumerate(results):
     true_tau = low_z_tau + h_2 * result["truth"][:,n]/factor
     predicted_tau = low_z_tau + h_2 * result["prediction"][:,n]/factor
 
-    axes[0,0].scatter(true_tau, predicted_tau, s=6, lw=0, alpha=0.9, label=fold[r])
+    axes[0,0].scatter(true_tau, predicted_tau, s=20, lw=0, alpha=0.9, label=fold[r])
     x = np.linspace(0.95*np.min(true_tau), 1.05*np.max(true_tau), 1000)
-    axes[0,0].plot(x, x, 'k--',lw=1,alpha=0.2)
+    axes[0,0].plot(x, x, 'k--',lw=2,alpha=0.2)
 
 
     axes[1,0].plot(x-x, 'k--',lw=1,alpha=0.2)
     relative_error = (predicted_tau-true_tau)/true_tau
-    axes[1,0].scatter(true_tau, relative_error,s=6, lw=0, alpha=0.9, label=fold[r])
+    axes[1,0].scatter(true_tau, relative_error,s=20, lw=0, alpha=0.9, label=fold[r])
 
 # plot box plot
 axes[0,1].boxplot(df["Slope"], labels=" ")
 axes[0,1].set_ylabel("")
-axes[0,1].set_xlabel("Best Fit Model", fontsize=18)
+axes[0,1].set_xlabel("Best Fit Model", fontsize=16)
 
 # Plot distance from mean
 axes[1,1].plot(np.arange(1,11),coeff,'o')
 axes[1,1].plot(np.arange(1,11),mean_,'k--',lw=1,markersize=4)
-axes[1,1].set_xlabel("Fold Number", fontsize=18)
-axes[1,1].set_ylabel("Distance from Mean", fontsize=18)
+axes[1,1].set_xlabel("Fold Number", fontsize=16)
+axes[1,1].set_ylabel("Distance from Mean", fontsize=16)
 
-axes[1,0].set_xlabel("True", fontsize=18)
+axes[1,0].set_xlabel(r"$\tau_{True}$", fontsize=16)
 axes[0,0].set_xlim(0.0475,0.0675)
 axes[1,0].set_xlim(0.0475,0.0675)
 axes[0,0].set_xscale('linear')
 axes[1,0].set_xscale('linear')
 
-axes[0,0].set_ylabel("Predicted", fontsize=18)
+axes[0,0].set_ylabel("Predicted", fontsize=16)
 axes[0,0].set_ylim(0.028,0.1)
-axes[1,0].set_ylabel("Residual Relative Difference", fontsize=18)
+axes[1,0].set_ylabel("Residual Relative Difference", fontsize=16)
 axes[0,0].set_yscale('linear')
 axes[1,0].set_yscale('linear')
- 
+
+axes[0,0].tick_params(labelcolor='k', labelsize='large', width=3)
+axes[1,0].tick_params(labelcolor='k', labelsize='large', width=3)
+
 axes[0,0].legend(markerscale=2.5)
+plt.tight_layout()
 plt.savefig(data_path+"bestmodel_4residual.png")
 
 

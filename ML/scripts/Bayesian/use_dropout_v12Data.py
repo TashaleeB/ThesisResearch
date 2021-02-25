@@ -1,12 +1,12 @@
 # needs to be ran in hp_opt environment with Tensorflow version
-
+# https://www.depends-on-the-definition.com/model-uncertainty-in-deep-learning-with-monte-carlo-dropout/
 # Data set: MNIST
 
 # tf.__version__ : '2.1.0'
 
 from __future__ import print_function, division, absolute_import
 
-import numpy as np, matplotlib.pyplot as plt, time, h5py, keras, random, os
+import numpy as np, matplotlib.pyplot as plt, gc, time, h5py, keras, os
 import tensorflow as tf
 
 from datetime import timedelta
@@ -14,43 +14,34 @@ from datetime import timedelta
 from tensorflow.keras import Model
 from tensorflow.keras.layers import Input, Dense, Dropout, BatchNormalization, Conv2D, MaxPooling2D, GlobalAveragePooling2D
 from keras import backend as K
-from sklearn.model_selection import train_test_split, KFold
 #from sklearn.metrics import accuracy_score
 
-#from matplotlib.ticker import PercentFormatter
+from matplotlib.ticker import PercentFormatter
 
-import gc
 gc.enable()
 
 # As you are trying to use function decorator in TF 2.0, please enable run function eagerly by using below line after importing TensorFlow: https://www.tensorflow.org/guide/effective_tf2#use_tfconfigexperimental_run_functions_eagerly_when_debugging
 tf.config.experimental_run_functions_eagerly(True)
 
+training = True # False means dropout is not activated during dropout
 wedge = False # Is the data wedge filtered
-training = False # if True the dropout will be active during to testing processes
-data_path = "/lustre/aoc/projects/hera/tbilling/ml/data/" #"/pylon5/as5phnp/tbilling/data/"
+data_path = '/pylon5/as5phnp/tbilling/data/'
 
 if wedge == False:
     inputFile = data_path+'t21_snapshots_nowedge_v12.hdf5'
-    outputdir = "/lustre/aoc/projects/hera/tbilling/ml/redo_mlpaper/no_modes_removed/" #"/pylon5/as5phnp/tbilling/sandbox/redo_mlpaper/no_modes_removed/"
 
 if wedge == True:
     inputFile = data_path+'t21_snapshots_wedge_v12.hdf5'
-    outputdir = "/lustre/aoc/projects/hera/tbilling/ml/redo_mlpaper/modes_removed/" #"/pylon5/as5phnp/tbilling/sandbox/redo_mlpaper/no_modes_removed/"
     
+outputdir = "/pylon5/as5phnp/tbilling/sandbox/bayesian/"
 
-train_test_file =data_path+"train_test_index_80_20_split.npz"
+train_test_file = data_path + "train_test_index_80_20_split.npz"
 
 n=0
-N_EPOCH = 100
+batch_size = 32
+N_EPOCH = 200
 factor =1000.
 
-def Rand(start, end, num):
-    res = []
-
-    for j in range(num):
-        res.append(random.randint(start, end))
-
-    return np.array(res)
 
 def readLabels(ind=None, **params):
 
@@ -119,30 +110,6 @@ def Mean_Squared_over_true_Error(y_true, y_pred):
 
     return loss
 
-def savePreds(model, eval_data, eval_labels, Ntot, fold, istart=0, outdir=outputdir):
-    outputFile = os.path.join(outdir, "eval_pred_results{:d}_v12data.npy".format(fold))
-
-    # The Predict() method -  is for the actual prediction. It generates output predictions for the input samples.
-    preds = model.predict(eval_data, verbose=0).flatten() #0 = silent
-
-    Nregressparams = len(eval_labels[0])
-
-    results = np.zeros((Ntot, Nregressparams),
-                           dtype = [('truth', 'f'), ('prediction', 'f'), ('fold', 'i')])
-    iend = istart+len(eval_labels)
-
-    #print('istart and iend', istart, iend)
-
-    results['fold'][istart:iend] = fold
-    results['truth'][istart:iend] = eval_labels
-    #results['truth'][istart-100:iend-100] = eval_labels
-    for n in range(Nregressparams):
-        results['prediction'][istart:iend,n] = preds[n::Nregressparams]
-        #results['prediction'][istart-100:iend-100,n] = preds[n::Nregressparams]
-
-    np.save(outputFile, results)
-
-"""
 # Load Index Label
 train_index = np.load(train_test_file)["train_index"]
 test_index = np.load(train_test_file)["test_index"]
@@ -155,14 +122,6 @@ train_images,shape =readImages(ind=train_index)
 test_labels = readLabels(ind=None)[test_index,5]*factor
 test_labels = test_labels.reshape(-1, 1)
 test_images,input_shape = readImages(ind=test_index)
-"""
-
-# Train/Valdiation/Test Data
-y = readLabels(ind=None)[:,5]*factor
-y = y.reshape(-1, 1)
-X,input_shape =readImages(ind=np.arange(1000))
-
-train_images, test_images, train_labels, test_labels = train_test_split(X, y, test_size=0.2, random_state=0)
 
 def model():
     input0 = Input(shape=input_shape)
@@ -226,52 +185,120 @@ def model():
     
 
 start_time = time.time()
+# Start Training
+model_dropout = model()
+history_dropout = model_dropout.fit(train_images, train_labels, epochs=N_EPOCH,
+                                    batch_size=batch_size, validation_split=0.1,
+                                    verbose = 2, shuffle=True)
 
-kf = KFold(n_splits=10, random_state=0, shuffle=True)
-for fold, [train_index, val_index] in enumerate(kf.split(np.arange(len(train_labels)))):
-
-    # Start Training
-    model_dropout = model()
-    history_dropout = model_dropout.fit(train_images, train_labels, epochs=N_EPOCH, batch_size=32, validation_data=(train_images[val_index], train_labels[val_index]), verbose = 2, shuffle=True)
-    #history_dropout = model_dropout.fit(train_images, train_labels, epochs=N_EPOCH,
-    #                                    batch_size=32, validation_split=0.1, verbose = 2, shuffle=True)
-
-    running_time = time.time() - start_time
-    print("Finish Training CNN in ", str(timedelta(seconds=running_time)))
+running_time = time.time() - start_time
+print("Finish Training CNN in ", str(timedelta(seconds=running_time)))
+        
+# Save model information
+if wedge == True:
+    # Save model
+    print("saving model trained on wedge filtered data ...")
+    model_dropout.save_weights(outputdir+"dopout_CNN_weights_wedge.h5")
+    model_dropout.save(outputdir+"dopout_CNN_model_wedge.h5")
     
-    # Save predictions
-    savePreds(model_dropout, test_images, test_labels, len(test_labels), fold)
-            
-    # Save model information
-    if wedge == True:
-        # Save model
-        print("saving model trained on wedge filtered data ...")
-        model_dropout.save_weights(outputdir+"CNN_wights_wedge_{}.h5".format(fold))
-        model_dropout.save(outputdir+"CNN_model_wedge_{}.h5".format(fold))
-        
-        # Save history
-        print("Removing Scaling factor ({}) and saving histories...".format(factor))
-        #history_keys = np.array(list(history_dropout.history.keys()))
-        np.savez(outputdir+"CNN_wedge_history_{}".format(fold),loss=np.array(history_dropout.history[str("loss")])/factor, val_loss=np.array(history_dropout.history[str("val_loss")])/factor)
-                     
-    if wedge == False:
-        # Save model
-        print("saving model trained on nowedge filtered data ...")
-        model_dropout.save_weights(outputdir+"CNN_weights_nowedge_{}.h5".format(fold))
-        model_dropout.save(outputdir+"CNN_model_nowedge_{}.h5".format(fold))
+    # Save history
+    print("Removing Scaling factor ({}) and saving histories...".format(factor))
+    history_keys = np.array(list(history_dropout.history.keys()))
+    for key in history_keys:
+        np.savez(outputdir+"dopout_CNN_wedge_history",
+                 metric=np.array(history_dropout.history[str(key)])/factor)
+                 
+if wedge == False:
+    # Save model
+    print("saving model trained on nowedge filtered data ...")
+    model_dropout.save_weights(outputdir+"dopout_CNN_weights_nowedge.h5")
+    model_dropout.save(outputdir+"dopout_CNN_model_nowedge.h5")
 
-        # Save history
-        print("Removing Scaling factor ({}) and saving histories...".format(factor))
-        #history_keys = np.array(list(history_dropout.history.keys()))
-        np.savez(outputdir+"CNN_nowedge_history_{}".format(fold),loss=np.array(history_dropout.history[str("loss")])/factor, val_loss=np.array(history_dropout.history[str("val_loss")])/factor)
-        
-    # remove TF graph
-    del(model_dropout)
-    gc.collect()
-    K.clear_session()
-    #tf.compat.v1.reset_default_graph()
+    # Save history
+    print("Removing Scaling factor ({}) and saving histories...".format(factor))
+    history_keys = np.array(list(history_dropout.history.keys()))
+    for key in history_keys:
+        np.savez(outputdir+"dopout_CNN_nowedge_history",
+                 metric=np.array(history_dropout.history[str(key)])/factor)
 
-for i in range(10):
-    indx_val = Rand(0, 199, 100)
-    savePreds(model_dropout, test_images[indx_val], test_labels[indx_val], len(test_labels[indx_val]), fold=i+1,  outdir=outputdir)
-    print("Completed Fold ", i)
+# evaluate trained model
+test_loss = model_dropout.evaluate(test_images, test_labels)
+
+# make predictions
+dropout_predictions = []
+for i in range(500):
+    y_p = model_dropout.predict(test_images, batch_size=test_labels.shape[0])
+    dropout_predictions.append(y_p) # (500, 100, 1) = (# of masks, # of datasets, # of classes)
+
+# Save dropout predictions
+if wedge == False:
+    np.savez(outputdir+"dropout_CNN_nowedge_pedictions", prediciton = dropout_predictions)
+if wedge == True:
+    np.savez(outputdir+"dropout_CNN_wedge_pedictions", prediciton = dropout_predictions)
+
+# select an index from the 200 prediciton over 500 dropout masks
+idx = 50
+p0 = np.array([p[idx] for p in dropout_predictions])
+print("posterior mean: {}".format(p0.mean(axis=0)))
+print("true label: {}".format(test_labels[idx]/factor))
+print()
+
+# probability and variance
+for i, (prob, var) in enumerate(zip(p0.mean(axis=0), p0.std(axis=0))):
+    print("class: {}; probability: {:.1%}; var: {:.2%} ".format(i, prob, var))
+    
+# ???? Plot a 2D histogram ???? https://matplotlib.org/3.1.1/gallery/statistics/hist.html
+fig, ax = plt.subplots(tight_layout=True)
+hist = ax.hist2d(x, y, bins=10)
+
+# look at the Probability distributions of the monte carlo predictions and in blue you see the prediction of the ensemble
+plt.figure(figsize=(12,12))
+plt.hist(p0[:,i], bins=100, density=True)
+plt.gca().yaxis.set_major_formatter(PercentFormatter(xmax=1))
+if wedge == True:
+    plt.savefig(outputdir+"MC_PDF_wedge.png")
+if wedge == False:
+plt.savefig(outputdir+"MC_PDF_nowedge.png")
+
+# one-to-one with errorbars (Fig 11) https://arxiv.org/pdf/1911.08508.pdf
+results = glob.glob(outputdir+"*.npy")
+result=np.load(results[0])
+yerr =
+
+# Convert to true tau units
+h_2 = 0.45321170409999995
+low_z_tau = 0.030029479627917934
+true_tau = low_z_tau + h_2 * result["truth"][:,n]/factor
+predicted_tau = low_z_tau + h_2 * result["prediction"][:,n]/factor
+
+plt.figure(figsize=(12,12))
+plt.errorbar(true_tau, predicted_tau, xerr=xerr, yerr=yerr, fmt='-o')
+#plt.scatter(true_tau, predicted_tau, s=6, lw=0, alpha=0.9, label=fold[r])
+x = np.linspace(0.95*np.min(true_tau), 1.05*np.max(true_tau), 1000)
+plt.plot(x, x, 'k--',lw=1,alpha=0.2)
+plt.xlabel()
+plt.ylabel()
+
+
+
+
+...: factor = 1000
+...: result = np.mean(np.load("nowedge/predictions.npz")["prediciton"][:,:,0]/factor, axis=0)
+...: yerr = np.std(np.load("nowedge/predictions.npz")["prediciton"][:,:,0]/factor, axis=0)
+...:
+...: # Convert to true tau units
+...: h_2 = 0.45321170409999995
+...: low_z_tau = 0.030029479627917934
+...: true_tau = low_z_tau + h_2 * result
+...: predicted_tau = low_z_tau + h_2 * test_labels/factor
+...:
+...:
+...: plt.figure(figsize=(12,12))
+...: plt.errorbar(true_tau, predicted_tau, yerr=yerr, fmt='o')
+...: #plt.errorbar(true_tau, predicted_tau, xerr=xerr, yerr=yerr, fmt='-o')
+...: #plt.scatter(true_tau, predicted_tau, s=6, lw=0, alpha=0.9, label=fold[r])
+...: x = np.linspace(0.95*np.min(true_tau), 1.05*np.max(true_tau), 1000)
+...: plt.plot(x, x, 'k--',lw=3,alpha=0.2)
+...: plt.xlabel("True", fontsize=16)
+...: plt.ylabel("Predicted", fontsize=16)
+...: plt.savefig("nowedge/predictions.png")

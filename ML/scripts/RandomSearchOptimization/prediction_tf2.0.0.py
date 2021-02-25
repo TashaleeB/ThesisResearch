@@ -23,7 +23,7 @@ gc.enable()
 
 
 data_path = '/pylon5/as5phnp/tbilling/data/'
-reionfilename = data_path+'t21_snapshots_nowedge_v7.hdf5'
+reionfilename = data_path+'t21_snapshots_nowedge_v12.hdf5'
 path_model = "/pylon5/as5phnp/tbilling/sandbox/hyper_param_optimiz/ml_paper1/opt_versions/200steps/"
 inputFile = reionfilename
 outputdir = path_model

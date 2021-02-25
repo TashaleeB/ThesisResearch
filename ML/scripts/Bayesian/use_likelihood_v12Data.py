@@ -29,10 +29,10 @@ training = False # if True the dropout will be active during to testing processe
 data_path = "/lustre/aoc/projects/hera/tbilling/ml/data/"
 
 if wedge == False:
-    inputFile = data_path+"t21_snapshots_nowedge_v9.hdf5"
+    inputFile = data_path+"t21_snapshots_nowedge_v12.hdf5"
 
 if wedge == True:
-    inputFile = data_path+"t21_snapshots_wedge_v9.hdf5"
+    inputFile = data_path+"t21_snapshots_wedge_v12.hdf5"
 
 outputdir = "/lustre/aoc/projects/hera/tbilling/ml/likelihood/"
 
@@ -234,7 +234,7 @@ def readImages(ind, **params):
     return data, data[0].shape
 
 def savePreds(model, eval_data, eval_labels, Ntot, fold, istart=0, outdir=None):
-    outputFile = os.path.join(outdir, "eval_pred_results{:d}_v9data.npy".format(fold))
+    outputFile = os.path.join(outdir, "eval_pred_results{:d}_v12data.npy".format(fold))
 
     # The Predict() method -  is for the actual prediction. It generates output predictions for the input samples.
     preds = model.predict(eval_data, verbose=0).flatten() #0 = silent

@@ -13,7 +13,11 @@ from datetime import timedelta
 
 from tensorflow.keras import Model
 from tensorflow.keras.layers import Input, Dense, Dropout, BatchNormalization, Conv2D, MaxPooling2D, GlobalAveragePooling2D
+
 from keras import backend as K
+from keras.callbacks import ModelCheckpoint
+from keras.preprocessing.image import ImageDataGenerator
+
 from sklearn.model_selection import train_test_split, KFold
 #from sklearn.metrics import accuracy_score
 
@@ -30,81 +34,17 @@ training = False # if True the dropout will be active during to testing processe
 data_path = "/lustre/aoc/projects/hera/tbilling/ml/data/" #"/pylon5/as5phnp/tbilling/data/"
 
 if wedge == False:
-    inputFile = data_path+'t21_snapshots_nowedge_v12.hdf5'
+    inputFile = data_path+'v12_nowedge.h5'
     outputdir = "/lustre/aoc/projects/hera/tbilling/ml/redo_mlpaper/no_modes_removed/" #"/pylon5/as5phnp/tbilling/sandbox/redo_mlpaper/no_modes_removed/"
 
 if wedge == True:
-    inputFile = data_path+'t21_snapshots_wedge_v12.hdf5'
-    outputdir = "/lustre/aoc/projects/hera/tbilling/ml/redo_mlpaper/modes_removed/" #"/pylon5/as5phnp/tbilling/sandbox/redo_mlpaper/no_modes_removed/"
-    
+    inputFile = data_path+'v12_wedge.h5'
+    outputdir = "/lustre/aoc/projects/hera/tbilling/ml/redo_mlpaper/modes_removed/" #"/pylon5/as5phnp/tbilling/sandbox/redo_mlpaper/modes_removed/"
 
-train_test_file =data_path+"train_test_index_80_20_split.npz"
-
-n=0
+n=32
 N_EPOCH = 100
 factor =1000.
-
-def Rand(start, end, num):
-    res = []
-
-    for j in range(num):
-        res.append(random.randint(start, end))
-
-    return np.array(res)
-
-def readLabels(ind=None, **params):
-
-    # read in labels only
-
-    f = h5py.File(inputFile, 'r')
-
-    if ind is None:
-        labels = np.asarray(f['Data'][u'snapshot_labels'])  #(N_realizations, N_parameters)
-    else:
-        labels = np.asarray(f['Data'][u'snapshot_labels'][:, ind])
-
-    if labels.ndim == 1:
-        print('training on just one param.')
-        print('starting with the following shape, dim:', labels.shape, labels.ndim)
-        if labels.ndim > 1:
-            labels = labels[:, params['predictoneparam']]
-    elif labels.shape[1] == 2:
-        print('training on two params.')
-        print('starting with the following shape, dim:', labels.shape, labels.ndim)
-        if labels.ndim > 1:
-            labels = labels[:, ind]
-
-    #if there's only one label per image, we'll have to reshape it:
-    if labels.ndim == 1:
-        print('reshaping data...')
-        labels = labels.reshape(-1, 1)
-
-    return labels
-
-def readImages(ind, **params):
-    # read in images onle
-
-    print('reading data from', inputFile)
-
-    f = h5py.File(inputFile, 'r')
-
-    #if params['debug'] == True:
-    #    data = np.asarray(f['Data'][u't21_snapshots'][ind,:,0:16,0:16])
-    if 'crop' in params:
-        print('cropping.')
-        #use just the top corner of the images
-        data = np.asarray(f['Data'][u't21_snapshots'][ind,:,0:params['crop'],0:params['crop']])
-    else:
-        #use everything!
-        print('reading all data', len(ind))
-        data = np.asarray(f['Data'][u't21_snapshots'][ind,:,:,:]) # (N_realizations, N_redshifts, N_pix, N_pix)
-        print('loaded data', len(ind))
-
-    print('finished loading data.', data.shape)
-
-    data  = data.transpose(0,2,3,1) #(N_realizations, N_pix, N_pix, N_redshifts)
-
-    return data, data[0].shape
+input_shape = (512, 512, 30)
 
 def Mean_Squared_over_true_Error(y_true, y_pred):
     # Create a custom loss function that divides the difference by the true
@@ -141,28 +81,6 @@ def savePreds(model, eval_data, eval_labels, Ntot, fold, istart=0, outdir=output
         #results['prediction'][istart-100:iend-100,n] = preds[n::Nregressparams]
 
     np.save(outputFile, results)
-
-"""
-# Load Index Label
-train_index = np.load(train_test_file)["train_index"]
-test_index = np.load(train_test_file)["test_index"]
-
-# Load images and labels for training and testing
-train_labels = readLabels(ind=None)[train_index,5]*factor
-train_labels = train_labels.reshape(-1, 1)
-train_images,shape =readImages(ind=train_index)
-
-test_labels = readLabels(ind=None)[test_index,5]*factor
-test_labels = test_labels.reshape(-1, 1)
-test_images,input_shape = readImages(ind=test_index)
-"""
-
-# Train/Valdiation/Test Data
-y = readLabels(ind=None)[:,5]*factor
-y = y.reshape(-1, 1)
-X,input_shape =readImages(ind=np.arange(1000))
-
-train_images, test_images, train_labels, test_labels = train_test_split(X, y, test_size=0.2, random_state=0)
 
 def model():
     input0 = Input(shape=input_shape)
@@ -223,36 +141,93 @@ def model():
     print(model_dropout.summary())
     
     return model_dropout
-    
-
-start_time = time.time()
+ 
+# Generator Function
+datagen = ImageDataGenerator(
+    featurewise_center=False,
+    samplewise_center=False,
+    featurewise_std_normalization=False,
+    samplewise_std_normalization=False,
+    zca_whitening=False,
+    zca_epsilon=1e-06,
+    rotation_range=0,
+    width_shift_range=0.0,
+    height_shift_range=0.0,
+    brightness_range=None,
+    shear_range=0.0,
+    zoom_range=0.0,
+    channel_shift_range=0.0,
+    fill_mode="nearest",
+    cval=0.0,
+    horizontal_flip=False,
+    vertical_flip=False,
+    rescale=None,
+    preprocessing_function=None,
+    data_format="channels_last",
+    validation_split=0.0,
+    dtype=None,
+)
 
 kf = KFold(n_splits=10, random_state=0, shuffle=True)
-for fold, [train_index, val_index] in enumerate(kf.split(np.arange(len(train_labels)))):
+# len(train_labels) = 800
 
-    # Start Training
+for fold, [train_index, val_index] in enumerate(kf.split(np.arange(800))): # 800 should be the total size of the training dataset
+    
     model_dropout = model()
-    history_dropout = model_dropout.fit(train_images, train_labels, epochs=N_EPOCH, batch_size=32, validation_data=(train_images[val_index], train_labels[val_index]), verbose = 2, shuffle=True)
-    #history_dropout = model_dropout.fit(train_images, train_labels, epochs=N_EPOCH,
-    #                                    batch_size=32, validation_split=0.1, verbose = 2, shuffle=True)
+    loss_list = []
+    val_loss_list = []
+    histories = []
+    
+    start_time = time.time()
+    
+    for e in range(N_EPOCH):
+        print("*"*50)
+        print('Epoch', e+1)
+        print("*"*50)
+        batches = 1
+        
+        # Loop through the entire tranining data for ach epoch
+        for i in range(0, int(1000*.8), n): #Feed in 21cm data in groups of n=32 at a time
+        # 1000*.8 should be the total size of the training dataset
+            x_train_ = h5py.File(inputFile, 'r')['train_images'][i:i + n,:,:,:]
+            y_train_ = h5py.File(inputFile, 'r')['train_labels'][i:i + n,0]
+            for x_batch, y_batch in datagen.flow(x_train_, y_train_, batch_size=32):
+                # break the n samples in to a batch
+                history = model_dropout.fit(x_batch, y_batch, validation_split=0.2, verbose=2) # Train and Validate batches of data aka incremental learning.
+                print("Batch number ",batches)
+                batches += 1
+                if batches >= ((len(x_train_)/32) -1):
+                    # Add history
+                    print("Adding to histories ... ")
+                    loss_list.append(history.history["loss"][0])
+                    val_loss_list.append(history.history["val_loss"][0])
+                    # we need to break the loop by hand because
+                    # the generator loops indefinitely
+                    del(y_batch,x_batch,x_train_,y_train_)
+                    gc.collect()
+                    #K.clear_session()
+                    break
 
+    histories.append([loss_list, val_loss_list])
     running_time = time.time() - start_time
     print("Finish Training CNN in ", str(timedelta(seconds=running_time)))
     
     # Save predictions
+    test_images = h5py.File(inputFile, 'r')['test_images']
+    test_labels = h5py.File(inputFile, 'r')['test_labels']
     savePreds(model_dropout, test_images, test_labels, len(test_labels), fold)
             
     # Save model information
     if wedge == True:
         # Save model
         print("saving model trained on wedge filtered data ...")
-        model_dropout.save_weights(outputdir+"CNN_wights_wedge_{}.h5".format(fold))
+        model_dropout.save_weights(outputdir+"CNN_weights_wedge_{}.h5".format(fold))
         model_dropout.save(outputdir+"CNN_model_wedge_{}.h5".format(fold))
         
         # Save history
         print("Removing Scaling factor ({}) and saving histories...".format(factor))
         #history_keys = np.array(list(history_dropout.history.keys()))
-        np.savez(outputdir+"CNN_wedge_history_{}".format(fold),loss=np.array(history_dropout.history[str("loss")])/factor, val_loss=np.array(history_dropout.history[str("val_loss")])/factor)
+        np.savez(outputdir+"CNN_wedge_history_{}".format(fold), metric = np.array(histories))#,loss=np.array(history_dropout.history[str("loss")])/factor, val_loss=np.array(history_dropout.history[str("val_loss")])/factor)
                      
     if wedge == False:
         # Save model
@@ -263,15 +238,16 @@ for fold, [train_index, val_index] in enumerate(kf.split(np.arange(len(train_lab
         # Save history
         print("Removing Scaling factor ({}) and saving histories...".format(factor))
         #history_keys = np.array(list(history_dropout.history.keys()))
-        np.savez(outputdir+"CNN_nowedge_history_{}".format(fold),loss=np.array(history_dropout.history[str("loss")])/factor, val_loss=np.array(history_dropout.history[str("val_loss")])/factor)
+        np.savez(outputdir+"CNN_nowedge_history_{}".format(fold), metric = np.array(histories))#,loss=np.array(history_dropout.history[str("loss")])/factor, val_loss=np.array(history_dropout.history[str("val_loss")])/factor)
         
     # remove TF graph
-    del(model_dropout)
+    del(model_dropout, test_images, test_labels)
     gc.collect()
     K.clear_session()
     #tf.compat.v1.reset_default_graph()
-
+"""
 for i in range(10):
     indx_val = Rand(0, 199, 100)
     savePreds(model_dropout, test_images[indx_val], test_labels[indx_val], len(test_labels[indx_val]), fold=i+1,  outdir=outputdir)
     print("Completed Fold ", i)
+"""

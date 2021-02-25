@@ -17,7 +17,8 @@ from datetime import timedelta
 from tensorflow.keras import Model
 from tensorflow.keras.layers import Input, Dense, Dropout, BatchNormalization, Conv2D, MaxPooling2D, GlobalAveragePooling2D
 from keras import backend as K
-from keras.callbacks import ModelCheckpoint
+from keras.callbacks import ModelCheckpoint, EarlyStopping
+from keras.preprocessing.image import ImageDataGenerator
 #from sklearn.metrics import accuracy_score
 
 from matplotlib.ticker import PercentFormatter
@@ -28,7 +29,7 @@ gc.enable()
 tf.config.experimental_run_functions_eagerly(True)
 
 wedge = False # Is the data wedge filtered
-data_path = '/pylon5/as5phnp/tbilling/data/'
+data_path = '/lustre/aoc/projects/hera/tbilling/ml/data/'
 
 if wedge == False:
     inputFile = data_path+'t21_snapshots_nowedge_v9.hdf5'
@@ -36,14 +37,12 @@ if wedge == False:
 if wedge == True:
     inputFile = data_path+'t21_snapshots_wedge_v9.hdf5'
     
-outputdir = "/pylon5/as5phnp/tbilling/sandbox/bayesian/"
-
-train_test_file = "/pylon5/as5phnp/tbilling/sandbox/hyper_param_optimiz/ml_paper1/train_test_index_0.npz"
+outputdir = "/lustre/aoc/projects/hera/tbilling/ml/full_flipout_model/"
+train_test_file = data_path +'train_test_index_80_20_split.npz'
 
 n=0
 N_EPOCH = 2000
 factor =1000.
-
 
 def readLabels(ind=None, **params):
 
@@ -100,7 +99,13 @@ def readImages(ind, **params):
     return data, data[0].shape
 
 # Loss Function
-negloglik = lambda y_true, y_pred: -y_pred.log_prob(y_true)
+def negloglik(y_true, y_pred, sigma=noise):
+    #dist = tfp.distributions.Normal(loc=y_pred, scale=sigma)
+    # prevent loss scaling with th dataseet size by taking the mean.
+    return -tf.reduce_mean(y_pred.log_prob(y_true)) #K.sum(-dist.log_prob(y_true))
+
+#negloglik = lambda y_true, y_pred: -y_pred.log_prob(y_true)
+
 
 # Load Index Label
 train_index = np.load(train_test_file)["train_index"]
@@ -215,7 +220,8 @@ checkpoint_model = ModelCheckpoint(filepath_model, monitor='loss', verbose=1,
                     save_best_only=True, save_weights_only = False, mode='min', save_freq=100)
 checkpoint_weight = ModelCheckpoint(filepath_weight, monitor='loss', verbose=1,
                     save_best_only=True, save_weights_only = True, mode='min', save_freq=100)
-callbacks_list = [checkpoint_weight, checkpoint_model]
+early_stop = keras.callbacks.EarlyStopping(monitor="val_loss", patience=30)
+callbacks_list = [checkpoint_weight, checkpoint_model,early_stop]
 
 # fit the model
 history_flipout = model_flipout.fit(train_images, train_labels, epochs=N_EPOCH, callbacks=callbacks_list,

@@ -23,3 +23,43 @@ if not os.path.exists('_cache'):
 
 p21c.config['direc'] = '_cache'
 cache_tools.clear_cache(direc="_cache")
+
+# The simplest and most efficient way to produce a coeval cube is simply to use the "run_coeval"
+# The output of run_coeval is a list of Coeval instances, one for each input redshift.
+coeval8, coeval9, coeval10 = p21c.run_coeval(
+    redshift = [8.0, 9.0, 10.0], #array_like -> A single redshift or multiple redshift.
+    user_params = {"HII_DIM": 100, "BOX_LEN": 100, "USE_INTERPOLATION_TABLES": True}, # 100 Mpc box len
+    cosmo_params = p21c.CosmoParams(SIGMA_8=0.8), #cosmological parameters used to compute initial conditions.
+    astro_params = p21c.AstroParams({"HII_EFF_FACTOR":20.0}), #astrophysical parameters defining the course of reionization.
+    random_seed=12345
+)
+
+# By default, each of the components of the cube are cached to disk (in our _cache/ folder) as we run it. However, the Coeval cube itself is not written to disk by default.
+filename = coeval8.save(direc='_cache')
+coeval8.init_struct.save(fname='my_init_struct.h5')
+
+# You can read in the Coeval cube
+new_coeval8 = p21c.Coeval.read(filename, direc='.')
+
+# prints the shape of the fields
+print(coeval8.hires_density.shape)
+print(coeval8.brightness_temp.shape)
+
+# List the kind of field
+ coeval8.get_fields()
+ coeval8.cosmo_params.cosmo
+
+# Using the plotting function
+fig, ax = plt.subplots(1,3, figsize=(14,4))
+for i, (coeval, redshift) in enumerate(zip([coeval8, coeval9, coeval10], [8,9,10])):
+    plotting.coeval_sliceplot(coeval, kind='brightness_temp', ax=ax[i], fig=fig);
+    plt.title("z = %s"%redshift)
+plt.tight_layout()
+plt.show
+
+fig, ax = plt.subplots(1,3, figsize=(14,4))
+for i, (coeval, redshift) in enumerate(zip([coeval8, coeval9, coeval10], [8,9,10])):
+    plotting.coeval_sliceplot(coeval, kind='density', ax=ax[i], fig=fig);
+    plt.title("z = %s"%redshift)
+plt.tight_layout()
+plt.show

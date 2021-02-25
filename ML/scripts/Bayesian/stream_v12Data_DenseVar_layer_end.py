@@ -10,6 +10,7 @@ from datetime import timedelta
 
 from tensorflow.keras import Model
 from tensorflow.keras.layers import Input, Dense, Dropout, BatchNormalization, Conv2D, MaxPooling2D, GlobalAveragePooling2D
+from tensorflow.keras import regularizers
 from keras import backend as K
 from keras.callbacks import ModelCheckpoint
 from keras.preprocessing.image import ImageDataGenerator
@@ -22,24 +23,31 @@ gc.enable()
 
 
 wedge = False # Is the data wedge filtered
-data_path = '/lustre/aoc/projects/hera/tbilling/ml/data/'
+data_path = "/lustre/aoc/projects/hera/tbilling/ml/data/" #"/pylon5/as5phnp/tbilling/data/"
 
 if wedge == False:
-    inputFile = data_path+'t21_snapshots_nowedge_v9.hdf5'
+    inputFile = data_path+"t21_snapshots_nowedge_v12.hdf5"
 
 if wedge == True:
-    inputFile = data_path+'t21_snapshots_wedge_v9.hdf5'
+    inputFile = data_path+"t21_snapshots_wedge_v12.hdf5"
 
-outputdir = "/lustre/aoc/projects/hera/tbilling/ml/baby_densevariational_end_only/"
+outputdir = "/lustre/aoc/projects/hera/tbilling/ml/baby_densevariational_end_only/" #"/pylon5/as5phnp/tbilling/sandbox/bayesian/denseflipout/"
 train_test_file = data_path+"train_test_index_80_20_split.npz"
 
-n=32
-N_EPOCH = 2000
+# Potential Parameters to change
+l1 = 1e-4
+l2 = 1e-3
+lr = 1e-3
+batch_size = int(32*1.5)#32
+
+n = batch_size
+N_EPOCH = 400#2000
 factor =1000.
 input_shape = (512, 512, 30)
+training = False
 
 # Loss Function
-negloglik = lambda y, rv_y: -rv_y.log_prob(y)
+negloglik = lambda y_true, y_pred: -y_pred.log_prob(y_true)
 
 # Model
 def model():
@@ -64,8 +72,13 @@ def model():
 
         inner = GlobalAveragePooling2D()(inner)
 
-        inner = Dropout(0.2)(inner, training=True)
+        inner = Dropout(0.2)(inner, training=training)
         inner = Dense(350, activation='relu')(inner)
+        #inner = Dense(350, activation='relu',
+        #        kernel_regularizer=regularizers.l1_l2(l1=l1, l2=l2),
+        #        bias_regularizer=regularizers.l2(l2),
+        #        activity_regularizer=regularizers.l2(1e-5)
+        #        )(inner)
 
     else:
         inner = Conv2D(128, kernel_size=(3, 3), activation='relu')(inner)
@@ -78,17 +91,37 @@ def model():
 
         inner = GlobalAveragePooling2D()(inner)
 
-        inner = Dropout(0.2)(inner, training=True)
+        inner = Dropout(0.2)(inner, training=training)
         inner = Dense(250, activation='relu')(inner)
+        #inner = Dense(250, activation='relu',
+        #        kernel_regularizer=regularizers.l1_l2(l1=l1, l2=l2),
+        #        bias_regularizer=regularizers.l2(l2),
+        #        activity_regularizer=regularizers.l2(1e-5)
+        #        )(inner)
 
-    inner = Dropout(0.2)(inner, training=True)
+    inner = Dropout(0.2)(inner, training=training)
     inner = Dense(200, activation='relu')(inner)
+    #inner = Dense(200, activation='relu',
+    #        kernel_regularizer=regularizers.l1_l2(l1=l1, l2=l2),
+    #        bias_regularizer=regularizers.l2(l2),
+    #        activity_regularizer=regularizers.l2(1e-5)
+    #        )(inner)
 
-    inner = Dropout(0.2)(inner, training=True)
+    inner = Dropout(0.2)(inner, training=training)
     inner = Dense(100, activation='relu')(inner)
+    #inner = Dense(100, activation='relu',
+    #        kernel_regularizer=regularizers.l1_l2(l1=l1, l2=l2),
+    #        bias_regularizer=regularizers.l2(l2),
+    #        activity_regularizer=regularizers.l2(1e-5)
+    #        )(inner)
 
-    inner = Dropout(0.2)(inner, training=True)
+    inner = Dropout(0.2)(inner, training=training)
     inner = Dense(20, activation='relu')(inner)
+    #inner = Dense(20, activation='relu',
+    #        kernel_regularizer=regularizers.l1_l2(l1=l1, l2=l2),
+    #        bias_regularizer=regularizers.l2(l2),
+    #        activity_regularizer=regularizers.l2(1e-5)
+    #        )(inner)
 
     #output = Dense(1)(inner)
     output1 = tfp.layers.DenseFlipout(1)(inner)#, kernel_posterior_fn=tfp_layers_util.default_mean_field_normal_fn(),
@@ -101,7 +134,7 @@ def model():
     # Compile Model
     #model_dropout.compile(loss=Mean_Squared_over_true_Error,optimizer=keras.optimizers.Adam(lr=0.0001, decay=0.))
 
-    model_dropout.compile(loss=negloglik,optimizer=keras.optimizers.Adam(lr=0.0001, decay=0.))
+    model_dropout.compile(loss=negloglik,optimizer=keras.optimizers.Adam(lr=lr, decay=0.))
     # Summary of model used
     print(model_dropout.summary())
 
@@ -133,13 +166,15 @@ datagen = ImageDataGenerator(
 )
 
 print("Building Model...")
+loss_list = []
+val_loss_list = []
 histories = []
-model_dropout = model()
+model_dense = model()
 
 # here's a more "manual" example
 for e in range(N_EPOCH):
     print("*"*50)
-    print('Epoch', e)
+    print('Epoch', e+1)
     print("*"*50)
     batches = 1
 
@@ -155,36 +190,65 @@ for e in range(N_EPOCH):
         callbacks_list = [checkpoint_model, checkpoint_weight]
 
         print("Trying to save weights and model for epoch {}".format(str(e+1)))
-        for i in range(0, int(1000*.75), n): #Feed in 21cm data in groups of n=32 at a time
+        for i in range(0, int(1000*.75), batch_size): #Feed in 21cm data in groups of n=32 at a time
             x_train_ = ((np.asarray(h5py.File(inputFile, 'r')['Data'][u't21_snapshots']).transpose(0,2,3,1))[i:i + n,:,:,:])
-            y_train_ = np.asarray(h5py.File(inputFile, 'r')['Data'][u'snapshot_labels'][i:i + n,5]).reshape(-1, 1)
-            for x_batch, y_batch in datagen.flow(x_train_, y_train_, batch_size=32):
-                history = model_dropout.fit(x_batch, y_batch, validation_split=0.2, callbacks=callbacks_list, verbose=1)
+            y_train_ = np.asarray(h5py.File(inputFile, 'r')['Data'][u'snapshot_labels'][i:i + n,5]).reshape(-1, 1)*factor
+            for x_batch, y_batch in datagen.flow(x_train_, y_train_, batch_size=batch_size):
+                history = model_dense.fit(x_batch, y_batch, validation_split=0.2, callbacks=callbacks_list, verbose=1)
                 print("Batch number ",batches)
                 batches += 1
-                if batches >= ((len(x_train_)/32) -1):
+                if batches >= ((len(x_train_)/batch_size) -1):
                     # Add history
-                    histories.append([history.history["loss"], history.history["val_loss"]])
+                    print("Adding to histories ... ")
+                    loss_list.append(history.history["loss"][0])
+                    val_loss_list.append(history.history["val_loss"][0])
+                    
                     del(y_batch,x_batch,x_train_,y_train_)
                     gc.collect()
                     K.clear_session()
                     break
             break
 
-    for i in range(0, int(1000*.75), n): #Feed in 21cm data in groups of n=32 at a time
+    for i in range(0, int(1000*.75), batch_size): #Feed in 21cm data in groups of n=32 at a time
         x_train_ = ((np.asarray(h5py.File(inputFile, 'r')['Data'][u't21_snapshots']).transpose(0,2,3,1))[i:i + n,:,:,:])
-        y_train_ = np.asarray(h5py.File(inputFile, 'r')['Data'][u'snapshot_labels'][i:i + n,5]).reshape(-1, 1)
-        for x_batch, y_batch in datagen.flow(x_train_, y_train_, batch_size=32):
+        y_train_ = np.asarray(h5py.File(inputFile, 'r')['Data'][u'snapshot_labels'][i:i + n,5]).reshape(-1, 1)*factor
+        for x_batch, y_batch in datagen.flow(x_train_, y_train_, batch_size=batch_size):
             # break the n samples in to a batch
-            history = model_dropout.fit(x_batch, y_batch, validation_split=0.2, verbose=1) # Train and Validate batches of data aka incremental learning.
+            history = model_dense.fit(x_batch, y_batch, validation_split=0.2, verbose=1) # Train and Validate batches of data aka incremental learning.
             print("Batch number ",batches)
             batches += 1
-            if batches >= ((len(x_train_)/32) -1):
+            if batches >= ((len(x_train_)/batch_size) -1):
                 # Add history
-                histories.append([history.history["loss"], history.history["val_loss"]])
+                print("Adding to histories ... ")
+                loss_list.append(history.history["loss"][0])
+                val_loss_list.append(history.history["val_loss"][0])
+                
                 # we need to break the loop by hand because
                 # the generator loops indefinitely
                 del(y_batch,x_batch,x_train_,y_train_)
                 gc.collect()
                 K.clear_session()
                 break
+
+# Save history
+histories.append([loss_list, val_loss_list])
+
+
+if wedge == False:
+    print("Ssaving histories...")
+    np.savez(outputdir+"denseflipout_CNN_nowedge_history",metric = np.array(histories),
+    loss = np.array(loss_list), val_loss = np.array(val_loss_list))
+
+    print("saving model trained on nowedge filtered data ...")
+    model_dense.save_weights(outputdir+"denseflipout_CNN_weights_nowedge.h5")
+    model_dense.save(outputdir+"denseflipout_CNN_model_nowedge.h5")
+
+if wedge == True:
+    print("Ssaving histories...")
+    np.savez(outputdir+"denseflipout_CNN_wedge_history",metric = np.array(histories),
+    loss = np.array(loss_list), val_loss = np.array(val_loss_list))
+
+    print("saving model trained on nowedge filtered data ...")
+    model_dense.save_weights(outputdir+"denseflipout_CNN_weights_wedge.h5")
+    model_dense.save(outputdir+"denseflipout_CNN_model_wedge.h5")
+
