@@ -1,3 +1,6 @@
+"""
+https://stackoverflow.com/questions/41668813/how-to-add-and-remove-new-layers-in-keras-after-loading-weights
+"""
 from __future__ import print_function, division, absolute_import
 
 import numpy as np, matplotlib.pyplot as plt, gc, time, h5py, keras

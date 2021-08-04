@@ -273,3 +273,14 @@ for i in np.arange(nfold):
     K.clear_session()
 
 np.savez(outputdir+"score_{:d}".format(fold_num),scores=scores)
+
+
+NUM_TRAIN_EXAMPLES=60000
+
+kl_divergence_function = (lambda q, p, _: tfd.kl_divergence(q, p)/tf.cast(NUM_TRAIN_EXAMPLES, dtype=tf.float32))
+
+bnn_model=models.Sequential()
+
+bnn_model.add(layers.Flatten(input_shape=(28,28)))
+bnn_model.add(tfp.layers.DenseFlipout(128, activation=tf.nn.relu, kernel_divergence_fn=kl_divergence_function, name="hidden_layer_flipout"))
+bnn_model.add(tfp.layers.DenseFlipout(10, kernel_divergence_fn=kl_divergence_function, activation=tf.nn.softmax,name="output_layer_flipout"))

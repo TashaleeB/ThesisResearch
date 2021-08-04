@@ -29,15 +29,15 @@ gc.enable()
 tf.config.experimental_run_functions_eagerly(True)
 
 wedge = False # Is the data wedge filtered
-data_path = '/lustre/aoc/projects/hera/tbilling/ml/data/'
+data_path = '/ocean/projects/ast180004p/tbilling/data/'
 
 if wedge == False:
-    inputFile = data_path+'t21_snapshots_nowedge_v9.hdf5'
+    inputFile = data_path+'t21_snapshots_nowedge_v12.hdf5'
 
 if wedge == True:
-    inputFile = data_path+'t21_snapshots_wedge_v9.hdf5'
+    inputFile = data_path+'t21_snapshots_wedge_v12.hdf5'
     
-outputdir = "/lustre/aoc/projects/hera/tbilling/ml/full_flipout_model/"
+outputdir = "/ocean/projects/ast180004p/tbilling/sandbox/ml/full_flipout_model/"
 train_test_file = data_path +'train_test_index_80_20_split.npz'
 
 n=0
