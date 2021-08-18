@@ -23,7 +23,7 @@ toy_model = np.load('toy_models.npz')
 nx, ny, ntrain = toy_model['training_data'].shape
 training_data = toy_model['training_data'].T
 labels = toy_model['labels']
-outputdir = "denseflipout_output/"
+outputdir = "/ocean/projects/ast180004p/tbilling/sandbox/bayesian/denseflipout/sandbox/toy_model/denseflipout_output/"
 
 # Data Preprocessing
 (X_train, y_train), (X_test, y_test) = mnist.load_data()
@@ -130,17 +130,17 @@ def train_test_model(hparams):
     print(model.summary())
     plot_model(model, show_shapes=True, show_layer_names=True)
     
-    filepath_model = outputdir+"flipout_CNN_model_num_units-"+str(hparams[HP_NUM_UNITS])+"_dropout-"+str(hparams[HP_DROPOUT]) + "_numFilters-"+ str(hparams[HP_NUM_FILTERS])+ "_loss-"+ str(hparams[HP_LOSS])+ "_training_epoch-"+ str(hparams[HP_EPOCH])+ "_batchsize-"+ str(hparams[HP_BATCH_SIZE])+ "_lr-"+ str(hparams[HP_LEARNING_RATE])+ "_layer-"+str(hparams[HP_LAYER])+"-{epoch:02d}-{loss:.4f}.h5"
-    filepath_weight = outputdir+"flipout_CNN_weight_num_units-"+str(hparams[HP_NUM_UNITS])+"_dropout-"+str(hparams[HP_DROPOUT]) + "_numFilters-"+ str(hparams[HP_NUM_FILTERS])+ "_loss-"+ str(hparams[HP_LOSS])+ "_training_epoch-"+ str(hparams[HP_EPOCH])+ "_batchsize-"+ str(hparams[HP_BATCH_SIZE])+ "_lr-"+ str(hparams[HP_LEARNING_RATE])+ "_layer-"+str(hparams[HP_LAYER])+"-{epoch:02d}-{loss:.4f}.h5"
+    filepath_model = outputdir+"models/flipout_CNN_model_num_units-"+ datetime.datetime.now().strftime("%Y%m%d-%H%M%S")+str(hparams[HP_NUM_UNITS])+"_dropout-"+str(hparams[HP_DROPOUT]) + "_numFilters-"+ str(hparams[HP_NUM_FILTERS])+ "_loss-"+ str(hparams[HP_LOSS])+ "_training_epoch-"+ str(hparams[HP_EPOCH])+ "_batchsize-"+ str(hparams[HP_BATCH_SIZE])+ "_lr-"+ str(hparams[HP_LEARNING_RATE])+ "_layer-"+str(hparams[HP_LAYER])+"-{epoch:02d}-{loss:.4f}.h5"
+    filepath_weight = outputdir+"models/flipout_CNN_weight_num_units-"+ datetime.datetime.now().strftime("%Y%m%d-%H%M%S")+str(hparams[HP_NUM_UNITS])+"_dropout-"+str(hparams[HP_DROPOUT]) + "_numFilters-"+ str(hparams[HP_NUM_FILTERS])+ "_loss-"+ str(hparams[HP_LOSS])+ "_training_epoch-"+ str(hparams[HP_EPOCH])+ "_batchsize-"+ str(hparams[HP_BATCH_SIZE])+ "_lr-"+ str(hparams[HP_LEARNING_RATE])+ "_layer-"+str(hparams[HP_LAYER])+"-{epoch:02d}-{loss:.4f}.h5"
     logdir = outputdir+"fit_logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     
     tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=logdir, histogram_freq=1)
     hparams_callback = hp.KerasCallback(logdir, hparams)
     
     checkpoint_model = ModelCheckpoint(filepath_model, monitor='loss', verbose=1,
-                        save_best_only=True, save_weights_only = False, mode='min', save_freq=1)
+                        save_best_only=True, save_weights_only = False, mode='min', save_freq=5)
     checkpoint_weight = ModelCheckpoint(filepath_weight, monitor='loss', verbose=1,
-                        save_best_only=True, save_weights_only = True, mode='min', save_freq=1)
+                        save_best_only=True, save_weights_only = True, mode='min', save_freq=5)
     early_stop = keras.callbacks.EarlyStopping(monitor="val_loss", patience=30)
     callbacks_list = [tensorboard_callback, # log metrics
                         hparams_callback, # log hparams
