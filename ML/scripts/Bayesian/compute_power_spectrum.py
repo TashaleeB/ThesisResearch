@@ -83,6 +83,13 @@ kbins = np.arange(0.5, npix//2+1, 1.) # the maximum wave number will equal half 
 # The kbin array will contain the start and end points of all bins; the corresponding k-values are the midpoints of these bins:
 kvals = 0.5 * (kbins[1:] + kbins[:-1])
 
+"""
+Data binning, bucketing is a data pre-processing method used to minimize the effects of small observation errors. The original data values are divided into small intervals known as bins and then they are replaced by a general value calculated for that bin. This has a smoothing effect on the input data and may also reduce the chances of overfitting in the case of small datasets
+There are 2 methods of dividing data into bins:
+
+Equal Frequency Binning: bins have an equal frequency.
+Equal Width Binning : bins have equal width with a range of each bin are defined as [min + w], [min + 2w] …. [min + nw] where w = (max – min) / (no of bins).
+"""
 # use scipy.stats to compute the average Fourier amplitude (squared) in each bin
 Abins, bin_edges, binnumber = stats.binned_statistic(knrm, fourier_amplitudes,
                                      statistic = "mean",

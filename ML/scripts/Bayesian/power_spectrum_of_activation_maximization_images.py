@@ -1,6 +1,7 @@
 # needs to be ran in hp_opt environment with Tensorflow version
 # https://keras.io/examples/vision/visualizing_what_convnets_learn/
 # https://www.machinecurve.com/index.php/2019/11/18/visualizing-keras-model-inputs-with-activation-maximization/
+# https://bertvandenbroucke.netlify.app/2019/05/24/computing-a-power-spectrum-in-python/
 # Data set: MNIST
 
 # tf.__version__ : '2.1.0'
@@ -55,7 +56,6 @@ factor =1000.
 
 
 def readLabels(ind=None, **params):
-
     # read in labels only
 
     f = h5py.File(inputFile, 'r')

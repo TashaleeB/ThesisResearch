@@ -35,9 +35,9 @@ from tensorflow.keras.layers import Conv2D, MaxPooling2D, GlobalAveragePooling2D
 from tensorflow.keras.wrappers.scikit_learn import KerasClassifier
 from tensorflow.keras import backend as K
 
-from kerastuner.tuners import RandomSearch
-from kerastuner.engine.hypermodel import HyperModel
-from kerastuner.engine.hyperparameters import HyperParameters
+from keras_tuner.tuners import RandomSearch
+from keras_tuner.engine.hypermodel import HyperModel
+from keras_tuner.engine.hyperparameters import HyperParameters
 
 data_path = '/pylon5/as5phnp/tbilling/data/'
 reionfilename = data_path+'t21_snapshots_nowedge_v7.hdf5'
